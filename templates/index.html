@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>IFYBNG.NGN</title>
+    <title>IFYBNG-COM</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -107,12 +107,6 @@
         .macd-negative {
             color: red !important;
         }
-        .lst-diff-positive {
-            color: green !important;
-        }
-        .lst-diff-negative {
-            color: red !important;
-        }
         .error {
             color: red !important;
         }
@@ -124,7 +118,7 @@
     </style>
 </head>
 <body>
-    <h1>MVS-BEN-TD</h1>
+    <h1>Marvellous-Benjamin-Net</h1>
     <p>Status: {{ status }}</p>
     <p>Timeframe: {{ timeframe }}</p>
     <p>Stop Time: {{ stop_time }}</p>
@@ -137,34 +131,33 @@
             <li>Timeframe: {{ signal.timeframe }}</li>
             <li>Strategy: {{ signal.strategy }}</li>
             <li>Message: {{ signal.message }}</li>
-            <li>Price: {{ signal.price | default(0) | round(4) }}</li>
-            <li>Open: {{ signal.open_price | default(0) | round(4) }}</li>
-            <li>Close: {{ signal.close_price | default(0) | round(4) }}</li>
-            <li>% Change: {{ signal.percent_change | default(0) | round(4) }}%</li>
-            <li>EMA1 (12): {{ signal.ema1 | default('N/A') | round(4) }}</li>
-            <li>EMA2 (26): {{ signal.ema2 | default('N/A') | round(4) }}</li>
-            <li>RSI (14): {{ signal.rsi | default('N/A') | round(4) }}</li>
-            <li>Diff: {{ signal.diff | default('N/A') | round(4) }}</li>
-            <li>KDJ K: {{ signal.k | default('N/A') | round(4) }}</li>
-            <li>KDJ D: {{ signal.d | default('N/A') | round(4) }}</li>
-            <li>KDJ J: {{ signal.j | default('N/A') | round(4) }}</li>
-            <li>MACD (DIF): {{ signal.macd | default('N/A') | round(4) }}</li>
-            <li>MACD Signal (DEA): {{ signal.macd_signal | default('N/A') | round(4) }}</li>
-            <li>MACD Hist: {{ signal.macd_hist | default('N/A') | round(4) }}</li>
-            <li>Lst Diff: {{ signal.lst_diff | default('N/A') | round(4) }}</li>
+            <li>Price: {{ signal.price | default(0) | round(2) }}</li>
+            <li>Open: {{ signal.open_price | default(0) | round(2) }}</li>
+            <li>Close: {{ signal.close_price | default(0) | round(2) }}</li>
+            <li>% Change: {{ signal.percent_change | default(0) | round(2) }}%</li>
+            <li>EMA1 (12): {{ signal.ema1 | default('N/A') | string }}</li>
+            <li>EMA2 (26): {{ signal.ema2 | default('N/A') | string }}</li>
+            <li>RSI (14): {{ signal.rsi | default('N/A') | string }}</li>
+            <li>Diff: {{ signal.diff | default('N/A') | string }}</li>
+            <li>KDJ K: {{ signal.k | default('N/A') | string }}</li>
+            <li>KDJ D: {{ signal.d | default('N/A') | string }}</li>
+            <li>KDJ J: {{ signal.j | default('N/A') | string }}</li>
+            <li>MACD (DIF): {{ signal.macd | default('N/A') | string }}</li>
+            <li>MACD Signal (DEA): {{ signal.macd_signal | default('N/A') | string }}</li>
+            <li>MACD Hist: {{ signal.macd_hist | default('N/A') | string }}</li>
             {% if signal.stop_loss is not none %}
-            <li>Stop-Loss: {{ signal.stop_loss | default(0) | round(4) }}</li>
+            <li>Stop-Loss: {{ signal.stop_loss | default(0) | round(2) }}</li>
             {% endif %}
             {% if signal.take_profit is not none %}
-            <li>Take-Profit: {{ signal.take_profit | default(0) | round(4) }}</li>
+            <li>Take-Profit: {{ signal.take_profit | default(0) | round(2) }}</li>
             {% endif %}
-            <li>Total Profit: {{ signal.total_profit | default(0) | round(4) }}</li>
-            <li>Total Return Profit: {{ signal.total_return_profit | default(0) | round(4) }}</li>
+            <li>Total Profit: {{ signal.total_profit | default(0) | round(2) }}</li>
+            <li>Total Return Profit: {{ signal.total_return_profit | default(0) | round(2) }}</li>
             {% if signal.action == "sell" %}
-            <li>Profit: {{ signal.profit | default(0) | round(4) }}</li>
+            <li>Profit: {{ signal.profit | default(0) | round(2) }}</li>
             {% endif %}
             {% if signal.action == "sell" and signal.return_profit %}
-            <li>Return Profit: {{ signal.return_profit | default(0) | round(4) }}</li>
+            <li>Return Profit: {{ signal.return_profit | default(0) | round(2) }}</li>
             {% endif %}
             {% if signal.order_id %}
             <li>Order ID: {{ signal.order_id }}</li>
@@ -196,19 +189,18 @@
                 <td>{{ trade.time }}</td>
                 <td class="{% if trade.action == 'buy' %}action-buy{% elif trade.action == 'sell' %}action-sell{% endif %}">{{ trade.action }}</td>
                 <td>{{ trade.strategy }}</td>
-                <td>{{ trade.price | default(0) | round(4) }}</td>
-                <td class="{% if trade.percent_change|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.percent_change | default(0) | round(4) }}%</td>
-                <td class="{% if trade.profit is not none and trade.profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.profit | default('N/A') | round(4) }}</td>
-                <td class="{% if trade.total_profit is not none and trade.total_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.total_profit | default('N/A') | round(4) }}</td>
-                <td class="{% if trade.return_profit is not none and trade.return_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.return_profit | default('N/A') | round(4) }}</td>
-                <td class="{% if trade.total_return_profit is not none and trade.total_return_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.total_return_profit | default('N/A') | round(4) }}</td>
+                <td>{{ trade.price | default(0) | round(2) }}</td>
+                <td class="{% if trade.percent_change|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.percent_change | default(0) | round(2) }}%</td>
+                <td class="{% if trade.profit is not none and trade.profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.profit | default('N/A') | string }}</td>
+                <td class="{% if trade.total_profit is not none and trade.total_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.total_profit | default('N/A') | string }}</td>
+                <td class="{% if trade.return_profit is not none and trade.return_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.return_profit | default('N/A') | string }}</td>
+                <td class="{% if trade.total_return_profit is not none and trade.total_return_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.total_return_profit | default('N/A') | string }}</td>
                 <td>{{ trade.order_id if trade.order_id else "N/A" }}</td>
                 <td>
-                    KDJ J: <span class="{% if trade.j|float < 0 %}kdj-negative{% elif trade.j|float > 65 %}kdj-overbought{% else %}kdj-neutral{% endif %}">{{ trade.j | default('N/A') | round(4) }}</span>,
-                    RSI: <span class="{% if trade.rsi|float < 15 %}rsi-oversold{% elif trade.rsi|float > 60 %}rsi-overbought{% else %}rsi-neutral{% endif %}">{{ trade.rsi | default('N/A') | round(4) }}</span>,
-                    Diff: <span class="{% if trade.diff|float > 0 %}diff-positive{% else %}diff-negative{% endif %}">{{ trade.diff | default('N/A') | round(4) }}</span>,
-                    MACD: <span class="{% if trade.macd|float > 0 %}macd-positive{% else %}macd-negative{% endif %}">{{ trade.macd | default('N/A') | round(4) }}</span>,
-                    Lst Diff: <span class="{% if trade.lst_diff|float > 0 %}lst-diff-positive{% else %}lst-diff-negative{% endif %}">{{ trade.lst_diff | default('N/A') | round(4) }}</span>,
+                    KDJ J: <span class="{% if trade.j|float < 0 %}kdj-negative{% elif trade.j|float > 65 %}kdj-overbought{% else %}kdj-neutral{% endif %}">{{ trade.j | default('N/A') | string }}</span>,
+                    RSI: <span class="{% if trade.rsi|float < 15 %}rsi-oversold{% elif trade.rsi|float > 60 %}rsi-overbought{% else %}rsi-neutral{% endif %}">{{ trade.rsi | default('N/A') | string }}</span>,
+                    Diff: <span class="{% if trade.diff|float > 0 %}diff-positive{% else %}diff-negative{% endif %}">{{ trade.diff | default('N/A') | string }}</span>,
+                    MACD: <span class="{% if trade.macd|float > 0 %}macd-positive{% else %}macd-negative{% endif %}">{{ trade.macd | default('N/A') | string }}</span>,
                     {{ trade.message }}
                 </td>
             </tr>
