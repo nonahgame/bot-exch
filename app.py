@@ -1,3 +1,4 @@
+# app.py
 import os
 import pandas as pd
 import numpy as np
@@ -63,8 +64,8 @@ CHAT_ID = os.getenv("CHAT_ID", "CHAT_ID")
 SYMBOL = os.getenv("SYMBOL", "SYMBOL")
 TIMEFRAME = os.getenv("TIMEFRAME", "TIMEFRAME")
 TIMEFRAMES = int(os.getenv("INTER_SECONDS", "INTER_SECONDS"))
-STOP_LOSS_PERCENT = float(os.getenv("STOP_LOSS_PERCENT", -2.0))
-TAKE_PROFIT_PERCENT = float(os.getenv("TAKE_PROFIT_PERCENT", 8.0))
+STOP_LOSS_PERCENT = float(os.getenv("STOP_LOSS_PERCENT", "STOP_LOSS_PERCENT"))
+TAKE_PROFIT_PERCENT = float(os.getenv("TAKE_PROFIT_PERCENT", "TAKE_PROFIT_PERCENT"))
 STOP_AFTER_SECONDS = float(os.getenv("STOP_AFTER_SECONDS", 0))  # Set to 0 to disable auto-stop
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "GITHUB_REPO")
@@ -81,7 +82,7 @@ HEADERS = {
 }
 
 # Database path
-db_path = 're_bot.db'
+db_path = 'ren_bot.db'
 
 # Timezone setup
 EU_TZ = pytz.utc
@@ -207,7 +208,7 @@ def setup_database():
                         logger.info(f"Removed corrupted database file at {db_path}")
 
                 logger.info(f"Attempting to download database from GitHub: {GITHUB_API_URL}")
-                if download_from_github('re_bot.db', db_path):
+                if download_from_github('ren_bot.db', db_path):
                     logger.info(f"Downloaded database from GitHub to {db_path}")
                     try:
                         test_conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -253,7 +254,6 @@ def setup_database():
                             macd REAL,
                             macd_signal REAL,
                             macd_hist REAL,
-                            lst_diff REAL,  -- Added lst_diff column
                             message TEXT,
                             timeframe TEXT,
                             order_id TEXT,
@@ -263,13 +263,13 @@ def setup_database():
                     logger.info("Created new trades table")
                 c.execute("PRAGMA table_info(trades);")
                 columns = [col[1] for col in c.fetchall()]
-                for col in ['return_profit', 'total_return_profit', 'diff', 'macd', 'macd_signal', 'macd_hist', 'lst_diff', 'message', 'timeframe', 'order_id', 'strategy']:
+                for col in ['return_profit', 'total_return_profit', 'diff', 'macd', 'macd_signal', 'macd_hist', 'message', 'timeframe', 'order_id', 'strategy']:
                     if col not in columns:
-                        c.execute(f"ALTER TABLE trades ADD COLUMN {col} {'REAL' if col in ['return_profit', 'total_return_profit', 'diff', 'macd', 'macd_signal', 'macd_hist', 'lst_diff'] else 'TEXT'};")
+                        c.execute(f"ALTER TABLE trades ADD COLUMN {col} {'REAL' if col in ['return_profit', 'total_return_profit', 'diff', 'macd', 'macd_signal', 'macd_hist'] else 'TEXT'};")
                         logger.info(f"Added column {col} to trades table")
                 conn.commit()
                 logger.info(f"Database initialized successfully at {db_path}, size: {os.path.getsize(db_path)} bytes")
-                upload_to_github(db_path, 're_bot.db')
+                upload_to_github(db_path, 'ren_bot.db')
                 return True
             except sqlite3.Error as e:
                 logger.error(f"SQLite error during database setup (attempt {attempt + 1}/3): {e}", exc_info=True)
@@ -333,9 +333,7 @@ def add_technical_indicators(df):
         df['macd_signal'] = macd['MACDs_12_26_9']  # DEA
         df['macd_hist'] = macd['MACDh_12_26_9']  # MACD Histogram
         df['diff'] = df['Close'] - df['Open']
-        # Calculate lst_diff: previous EMA1 - current EMA1
-        df['lst_diff'] = df['ema1'].shift(1) - df['ema1']
-        logger.debug(f"Technical indicators calculated: {df.iloc[-1][['ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'macd', 'macd_signal', 'macd_hist', 'diff', 'lst_diff']].to_dict()}")
+        logger.debug(f"Technical indicators calculated: {df.iloc[-1][['ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'macd', 'macd_signal', 'macd_hist', 'diff']].to_dict()}")
         return df
     except Exception as e:
         logger.error(f"Error calculating indicators: {e}")
@@ -371,11 +369,11 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         market = exchange.load_markets()[SYMBOL]
         quantity_precision = market['precision']['amount']
         quantity = exchange.amount_to_precision(SYMBOL, quantity)
-        logger.debug(f"Calculated quantity: {quantity} for {usdt_amount} USDT at price {close_price:.4f}")
+        logger.debug(f"Calculated quantity: {quantity} for {usdt_amount} USDT at price {close_price:.2f}")
     except Exception as e:
         logger.error(f"Error calculating quantity: {e}")
         return "hold", None, None, None
-    # Updated 10 08 2025
+    # market logics
     if position == "long" and buy_price is not None:
         stop_loss = buy_price * (1 + stop_loss_percent / 100)
         take_profit = buy_price * (1 + take_profit_percent / 100)
@@ -385,40 +383,16 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif close_price >= take_profit:
             logger.info("Take-profit triggered.")
             action = "sell"
-        elif (close_price < open_price and kdj_j > kdj_d and macd > macd_signal and ema1 > ema2 and kdj_j > 18):
-            logger.info(f"Sell condition met: close={close_price:.4f}, open={open_price:.4f}, kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, DIF={macd:.4f}, DEA={macd_signal:.4f}")
-            action = "sell"
-        elif (close_price < open_price and kdj_j < kdj_d and macd < macd_signal and kdj_j > 18 and ema1 > ema2):
-            logger.info(f"Sell condition met: close={close_price:.4f}, open={open_price:.4f}, kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, DIF={macd:.4f}, DEA={macd_signal:.4f}")
-            action = "sell"
-        elif (close_price < open_price and kdj_j < kdj_d and macd > macd_signal and kdj_j > 40.00 and rsi > 45.00):
-            logger.info(f"Sell condition met: close={close_price:.4f}, open={open_price:.4f}, kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, DIF={macd:.4f}, DEA={macd_signal:.4f}")
-            action = "sell"
-        elif (close_price < open_price and kdj_j > kdj_d and macd < macd_signal and kdj_j > 45.00 and rsi > 45.00):
-            logger.info(f"Sell condition met: close={close_price:.4f}, open={open_price:.4f}, kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, DIF={macd:.4f}, DEA={macd_signal:.4f}")
-            action = "sell"
-        elif (kdj_j > 133.00 and rsi > 45.00):
-            logger.info(f"Overbought KDJ J detected: kdj_j={kdj_j:.4f}")
+        elif close_price < open_price:
+            logger.info("Sell-logic triggered.")
             action = "sell"
 
     if action == "hold" and position is None:
-        if (kdj_j < - 30.00 and ema1 < ema2 or kdj_j < kdj_d and macd < macd_signal and rsi < 40.00):
-            logger.info(f"Buy condition met: kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, close={close_price:.4f}, open={open_price:.4f}, ema1={ema1:.4f}, ema2={ema2:.4f}")
+        if (kdj_j < - 54.00 and ema1 < ema2 or kdj_j < kdj_d and macd < macd_signal and rsi < 19.00): # or (close_price > open_price and kdj_j > kdj_d or ema1 > ema2 and macd > macd_signal):
+            logger.info(f"Buy condition met: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, close={close_price:.2f}, open={open_price:.2f}, ema1={ema1:.2f}, ema2={ema2:.2f}")
             action = "buy"
-        elif (close_price > open_price and kdj_j > kdj_d and macd > macd_signal and kdj_j < 115.00 and ema1 > ema2):
-            logger.info(f"Buy condition met: kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, close={close_price:.4f}, open={open_price:.4f}, ema1={ema1:.4f}, ema2={ema2:.4f}")
-            action = "buy"
-        elif (close_price > open_price and macd > macd_signal and ema1 > ema2 and kdj_j < 114.00):
-            logger.info(f"Buy condition met: kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, close={close_price:.4f}, open={open_price:.4f}, ema1={ema1:.4f}, ema2={ema2:.4f}")
-            action = "buy"
-        elif (close_price > open_price and kdj_j > kdj_d and macd > macd_signal and kdj_j < 114.00):
-            logger.info(f"Buy condition met: kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, close={close_price:.4f}, open={open_price:.4f}, ema1={ema1:.4f}, ema2={ema2:.4f}")
-            action = "buy"
-        elif (close_price > open_price and kdj_j > kdj_d and macd < macd_signal and kdj_j > 45.00 and rsi < 40.00 and ema1 < ema2):
-            logger.info(f"Buy condition met: close={close_price:.4f}, open={open_price:.4f}, kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, DIF={macd:.4f}, DEA={macd_signal:.4f}")
-            action = "buy"
-        elif (close_price > open_price and kdj_j < kdj_d and macd > macd_signal and kdj_j > 40.00 and rsi < 40.00 and ema1 < ema2):
-            logger.info(f"Buy condition met: close={close_price:.4f}, open={open_price:.4f}, kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, DIF={macd:.4f}, DEA={macd_signal:.4f}")
+        elif (close_price > open_price and kdj_j > kdj_d):
+            logger.info("Buy-logic triggered.")
             action = "buy"
 
     if action == "buy" and position is not None:
@@ -433,11 +407,18 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
             if action == "buy":
                 order = exchange.create_market_buy_order(SYMBOL, quantity)
                 order_id = str(order['id'])
-                logger.info(f"Placed market buy order: {order_id}, quantity={quantity}, price={close_price:.4f}")
+                logger.info(f"Placed market buy order: {order_id}, quantity={quantity}, price={close_price:.2f}")
             elif action == "sell":
+                balance = exchange.fetch_balance()
+                asset_symbol = SYMBOL.split("/")[0]
+                available_amount = balance[asset_symbol]['free']
+                quantity = exchange.amount_to_precision(SYMBOL, available_amount)
+                if float(quantity) <= 0:
+                    logger.warning("No asset balance available to sell.")
+                    return "hold", None, None, None
                 order = exchange.create_market_sell_order(SYMBOL, quantity)
                 order_id = str(order['id'])
-                logger.info(f"Placed market sell order: {order_id}, quantity={quantity}, price={close_price:.4f}")
+                logger.info(f"Placed market sell order: {order_id}, quantity={quantity}, price={close_price:.2f}")
         except Exception as e:
             logger.error(f"Error placing market order: {e}")
             action = "hold"
@@ -467,7 +448,7 @@ def handle_second_strategy(action, current_price, primary_profit):
         return_profit = current_price - tracking_buy_price
         total_return_profit += return_profit
         tracking_has_buy = False
-        msg = f", Return Profit: {return_profit:.4f}"
+        msg = f", Return Profit: {return_profit:.2f}"
     elif action == "sell" and not tracking_has_buy:
         last_sell_profit = primary_profit
         if last_sell_profit > 0:
@@ -488,26 +469,25 @@ Time: {signal['time']}
 Timeframe: {signal['timeframe']}
 Strategy: {signal['strategy']}
 Msg: {signal['message']}
-Price: {signal['price']:.4f}
-Open: {signal['open_price']:.4f}
-Close: {signal['close_price']:.4f}
-Volume: {signal['volume']:.4f}
-% Change: {signal['percent_change']:.4f}%
-EMA1 (12): {signal['ema1']:.4f}
-EMA2 (26): {signal['ema2']:.4f}
-RSI (14): {signal['rsi']:.4f}
-Diff: {diff_color} {signal['diff']:.4f}
-KDJ K: {signal['k']:.4f}
-KDJ D: {signal['d']:.4f}
-KDJ J: {signal['j']:.4f}
-MACD (DIF): {signal['macd']:.4f}
-MACD Signal (DEA): {signal['macd_signal']:.4f}
-MACD Hist: {signal['macd_hist']:.4f}
-Lst Diff: {signal['lst_diff']:.4f}
-{f"Stop-Loss: {signal['stop_loss']:.4f}" if signal['stop_loss'] is not None else ""}
-{f"Take-Profit: {signal['take_profit']:.4f}" if signal['take_profit'] is not None else ""}
-{f"Total Profit: {signal['total_profit']:.4f}" if signal['action'] in ["buy", "sell"] else ""}
-{f"Profit: {signal['profit']:.4f}" if signal['action'] == "sell" else ""}
+Price: {signal['price']:.2f}
+Open: {signal['open_price']:.2f}
+Close: {signal['close_price']:.2f}
+Volume: {signal['volume']:.2f}
+% Change: {signal['percent_change']:.2f}%
+EMA1 (12): {signal['ema1']:.2f}
+EMA2 (26): {signal['ema2']:.2f}
+RSI (14): {signal['rsi']:.2f}
+Diff: {diff_color} {signal['diff']:.2f}
+KDJ K: {signal['k']:.2f}
+KDJ D: {signal['d']:.2f}
+KDJ J: {signal['j']:.2f}
+MACD (DIF): {signal['macd']:.2f}
+MACD Signal (DEA): {signal['macd_signal']:.2f}
+MACD Hist: {signal['macd_hist']:.2f}
+{f"Stop-Loss: {signal['stop_loss']:.2f}" if signal['stop_loss'] is not None else ""}
+{f"Take-Profit: {signal['take_profit']:.2f}" if signal['take_profit'] is not None else ""}
+{f"Total Profit: {signal['total_profit']:.2f}" if signal['action'] in ["buy", "sell"] else ""}
+{f"Profit: {signal['profit']:.2f}" if signal['action'] == "sell" else ""}
 {f"Order ID: {signal['order_id']}" if signal['order_id'] else ""}
 """
             bot.send_message(chat_id=chat_id, text=message)
@@ -566,7 +546,6 @@ def trading_bot():
             'macd': 0.0,
             'macd_signal': 0.0,
             'macd_hist': 0.0,
-            'lst_diff': 0.0,  # Added lst_diff
             'message': f"Test message for {SYMBOL} bot startup",
             'timeframe': TIMEFRAME,
             'order_id': None,
@@ -612,14 +591,13 @@ def trading_bot():
         'macd': 0.0,
         'macd_signal': 0.0,
         'macd_hist': 0.0,
-        'lst_diff': 0.0,  # Added lst_diff
         'message': f"Initializing bot for {SYMBOL}",
         'timeframe': TIMEFRAME,
         'order_id': None,
         'strategy': 'initial'
     }
     store_signal(initial_signal)
-    upload_to_github(db_path, 're_bot.db')
+    upload_to_github(db_path, 'ren_bot.db')
     logger.info("Initial hold signal generated")
 
     for attempt in range(3):
@@ -669,7 +647,7 @@ def trading_bot():
                         try:
                             order = exchange.create_market_sell_order(SYMBOL, quantity)
                             order_id = str(order['id'])
-                            logger.info(f"Placed market sell order on stop: {order_id}, quantity={quantity}, price={latest_data['Close']:.4f}")
+                            logger.info(f"Placed market sell order on stop: {order_id}, quantity={quantity}, price={latest_data['Close']:.2f}")
                         except Exception as e:
                             logger.error(f"Error placing market sell order on stop: {e}")
                         signal = create_signal("sell", latest_data['Close'], latest_data, df, profit, total_profit, return_profit, total_return_profit, f"Bot stopped due to time limit{msg}", order_id, "primary")
@@ -678,7 +656,7 @@ def trading_bot():
                             send_telegram_message(signal, BOT_TOKEN, CHAT_ID)
                     position = None
                 logger.info("Bot stopped due to time limit")
-                upload_to_github(db_path, 're_bot.db')
+                upload_to_github(db_path, 'ren_bot.db')
                 break
 
             if not bot_active:
@@ -739,7 +717,7 @@ def trading_bot():
                                         try:
                                             order = exchange.create_market_sell_order(SYMBOL, quantity)
                                             order_id = str(order['id'])
-                                            logger.info(f"Placed market sell order on /stop: {order_id}, quantity={quantity}, price={current_price:.4f}")
+                                            logger.info(f"Placed market sell order on /stop: {order_id}, quantity={quantity}, price={current_price:.2f}")
                                         except Exception as e:
                                             logger.error(f"Error placing market sell order on /stop: {e}")
                                         signal = create_signal("sell", current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, f"Bot stopped via Telegram{msg}", order_id, "primary")
@@ -749,7 +727,7 @@ def trading_bot():
                                         position = None
                                     bot_active = False
                                 bot.send_message(chat_id=command_chat_id, text="Bot stopped.")
-                                upload_to_github(db_path, 're_bot.db')
+                                upload_to_github(db_path, 'ren_bot.db')
                             elif text.startswith('/stop') and text[5:].isdigit():
                                 multiplier = int(text[5:])
                                 with bot_lock:
@@ -765,7 +743,7 @@ def trading_bot():
                                         try:
                                             order = exchange.create_market_sell_order(SYMBOL, quantity)
                                             order_id = str(order['id'])
-                                            logger.info(f"Placed market sell order on /stopN: {order_id}, quantity={quantity}, price={current_price:.4f}")
+                                            logger.info(f"Placed market sell order on /stopN: {order_id}, quantity={quantity}, price={current_price:.2f}")
                                         except Exception as e:
                                             logger.error(f"Error placing market sell order on /stopN: {e}")
                                         signal = create_signal("sell", current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, f"Bot paused via Telegram{msg}", order_id, "primary")
@@ -775,7 +753,7 @@ def trading_bot():
                                         position = None
                                     bot_active = False
                                 bot.send_message(chat_id=command_chat_id, text=f"Bot paused for {pause_duration/60} minutes.")
-                                upload_to_github(db_path, 're_bot.db')
+                                upload_to_github(db_path, 'ren_bot.db')
                             elif text == '/start':
                                 with bot_lock:
                                     if not bot_active:
@@ -821,17 +799,17 @@ def trading_bot():
             with bot_lock:
                 profit = 0
                 return_profit = 0
-                msg = f"HOLD {SYMBOL} at {current_price:.4f}"
+                msg = f"HOLD {SYMBOL} at {current_price:.2f}"
                 if bot_active and action == "buy" and position is None:
                     position = "long"
                     buy_price = current_price
                     return_profit, msg_suffix = handle_second_strategy("buy", current_price, 0)
-                    msg = f"BUY {SYMBOL} at {current_price:.4f}, Order ID: {order_id}{msg_suffix}"
+                    msg = f"BUY {SYMBOL} at {current_price:.2f}, Order ID: {order_id}{msg_suffix}"
                 elif bot_active and action == "sell" and position == "long":
                     profit = current_price - buy_price
                     total_profit += profit
                     return_profit, msg_suffix = handle_second_strategy("sell", current_price, profit)
-                    msg = f"SELL {SYMBOL} at {current_price:.4f}, Profit: {profit:.4f}, Order ID: {order_id}{msg_suffix}"
+                    msg = f"SELL {SYMBOL} at {current_price:.2f}, Profit: {profit:.2f}, Order ID: {order_id}{msg_suffix}"
                     if stop_loss and current_price <= stop_loss:
                         msg += " (Stop-Loss)"
                     elif take_profit and current_price >= take_profit:
@@ -840,13 +818,13 @@ def trading_bot():
 
                 signal = create_signal(action, current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, msg, order_id, "primary")
                 store_signal(signal)
-                logger.debug(f"Generated signal: action={signal['action']}, time={signal['time']}, price={signal['price']:.4f}, order_id={signal['order_id']}")
+                logger.debug(f"Generated signal: action={signal['action']}, time={signal['time']}, price={signal['price']:.2f}, order_id={signal['order_id']}")
 
                 if bot_active and action != "hold" and bot:
                     threading.Thread(target=send_telegram_message, args=(signal, BOT_TOKEN, CHAT_ID), daemon=True).start()
 
             if bot_active and action != "hold":
-                upload_to_github(db_path, 're_bot.db')
+                upload_to_github(db_path, 'ren_bot.db')
 
             loop_end_time = datetime.now(EU_TZ)
             processing_time = (loop_end_time - loop_start_time).total_seconds()
@@ -870,28 +848,27 @@ def create_signal(action, current_price, latest_data, df, profit, total_profit, 
         'time': datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S"),
         'action': action,
         'symbol': SYMBOL,
-        'price': round(float(current_price), 4),
-        'open_price': round(float(latest_data['Open']) if not pd.isna(latest_data['Open']) else 0.0, 4),
-        'close_price': round(float(latest_data['Close']) if not pd.isna(latest_data['Close']) else 0.0, 4),
-        'volume': round(float(latest_data['Volume']) if not pd.isna(latest_data['Volume']) else 0.0, 4),
-        'percent_change': round(float(((current_price - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100) if len(df) >= 2 and df['Close'].iloc[-2] != 0 else 0.0), 4),
-        'stop_loss': round(float(stop_loss), 4) if stop_loss is not None else None,
-        'take_profit': round(float(take_profit), 4) if take_profit is not None else None,
-        'profit': round(float(profit), 4),
-        'total_profit': round(float(total_profit), 4),
-        'return_profit': round(float(return_profit), 4),
-        'total_return_profit': round(float(total_return_profit), 4),
-        'ema1': round(float(latest['ema1']) if not pd.isna(latest['ema1']) else 0.0, 4),
-        'ema2': round(float(latest['ema2']) if not pd.isna(latest['ema2']) else 0.0, 4),
-        'rsi': round(float(latest['rsi']) if not pd.isna(latest['rsi']) else 0.0, 4),
-        'k': round(float(latest['k']) if not pd.isna(latest['k']) else 0.0, 4),
-        'd': round(float(latest['d']) if not pd.isna(latest['d']) else 0.0, 4),
-        'j': round(float(latest['j']) if not pd.isna(latest['j']) else 0.0, 4),
-        'diff': round(float(latest['diff']) if not pd.isna(latest['diff']) else 0.0, 4),
-        'macd': round(float(latest['macd']) if not pd.isna(latest['macd']) else 0.0, 4),
-        'macd_signal': round(float(latest['macd_signal']) if not pd.isna(latest['macd_signal']) else 0.0, 4),
-        'macd_hist': round(float(latest['macd_hist']) if not pd.isna(latest['macd_hist']) else 0.0, 4),
-        'lst_diff': round(float(latest['lst_diff']) if not pd.isna(latest['lst_diff']) else 0.0, 4),  # Added lst_diff
+        'price': float(current_price),
+        'open_price': float(latest_data['Open']) if not pd.isna(latest_data['Open']) else 0.0,
+        'close_price': float(latest_data['Close']) if not pd.isna(latest_data['Close']) else 0.0,
+        'volume': float(latest_data['Volume']) if not pd.isna(latest_data['Volume']) else 0.0,
+        'percent_change': float(((current_price - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100) if len(df) >= 2 and df['Close'].iloc[-2] != 0 else 0.0),
+        'stop_loss': None,
+        'take_profit': None,
+        'profit': float(profit),
+        'total_profit': float(total_profit),
+        'return_profit': float(return_profit),
+        'total_return_profit': float(total_return_profit),
+        'ema1': float(latest['ema1']) if not pd.isna(latest['ema1']) else 0.0,
+        'ema2': float(latest['ema2']) if not pd.isna(latest['ema2']) else 0.0,
+        'rsi': float(latest['rsi']) if not pd.isna(latest['rsi']) else 0.0,
+        'k': float(latest['k']) if not pd.isna(latest['k']) else 0.0,
+        'd': float(latest['d']) if not pd.isna(latest['d']) else 0.0,
+        'j': float(latest['j']) if not pd.isna(latest['j']) else 0.0,
+        'diff': float(latest['diff']) if not pd.isna(latest['diff']) else 0.0,
+        'macd': float(latest['macd']) if not pd.isna(latest['macd']) else 0.0,
+        'macd_signal': float(latest['macd_signal']) if not pd.isna(latest['macd_signal']) else 0.0,
+        'macd_hist': float(latest['macd_hist']) if not pd.isna(latest['macd_hist']) else 0.0,
         'message': msg,
         'timeframe': TIMEFRAME,
         'order_id': order_id,
@@ -914,8 +891,8 @@ def store_signal(signal):
                     time, action, symbol, price, open_price, close_price, volume,
                     percent_change, stop_loss, take_profit, profit, total_profit,
                     return_profit, total_return_profit, ema1, ema2, rsi, k, d, j, diff,
-                    macd, macd_signal, macd_hist, lst_diff, message, timeframe, order_id, strategy
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    macd, macd_signal, macd_hist, message, timeframe, order_id, strategy
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 signal['time'], signal['action'], signal['symbol'], signal['price'],
                 signal['open_price'], signal['close_price'], signal['volume'],
@@ -925,7 +902,7 @@ def store_signal(signal):
                 signal['ema1'], signal['ema2'], signal['rsi'],
                 signal['k'], signal['d'], signal['j'], signal['diff'],
                 signal['macd'], signal['macd_signal'], signal['macd_hist'],
-                signal['lst_diff'], signal['message'], signal['timeframe'], signal['order_id'], signal['strategy']
+                signal['message'], signal['timeframe'], signal['order_id'], signal['strategy']
             ))
             conn.commit()
             elapsed = time.time() - start_time
@@ -967,8 +944,8 @@ Timeframe: {tf}
 Duration (hours): {duration if duration != "N/A" else duration}
 Win Trades: {win_trades}
 Loss Trades: {loss_trades}
-Total Profit: {total_profit_db:.4f}
-Total Return Profit: {total_return_profit_db:.4f}
+Total Profit: {total_profit_db:.2f}
+Total Return Profit: {total_return_profit_db:.2f}
 """
             elapsed = time.time() - start_time
             logger.debug(f"Performance data fetched in {elapsed:.3f}s")
@@ -1013,8 +990,8 @@ Buy Trades: {buy_trades}
 Sell Trades: {sell_trades}
 Win Trades: {win_trades}
 Loss Trades: {loss_trades}
-Total Profit: {total_profit_db:.4f}
-Total Return Profit: {total_return_profit_db:.4f}
+Total Profit: {total_profit_db:.2f}
+Total Return Profit: {total_return_profit_db:.2f}
 """
             elapsed = time.time() - start_time
             logger.debug(f"Trade counts fetched in {elapsed:.3f}s")
@@ -1096,7 +1073,7 @@ def cleanup():
     if conn:
         conn.close()
         logger.info("Database connection closed")
-        upload_to_github(db_path, 're_bot.db')
+        upload_to_github(db_path, 'ren_bot.db')
         logger.info("Final database backup to GitHub completed")
 
 atexit.register(cleanup)
@@ -1114,7 +1091,7 @@ keep_alive_thread.start()
 logger.info("Keep-alive thread started")
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
+    port = int(os.getenv("PORT", 4000))
     logger.info(f"Starting Flask server on port {port}")
     asyncio.run(main())
     app.run(host='0.0.0.0', port=port, debug=False)
