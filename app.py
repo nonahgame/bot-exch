@@ -556,8 +556,8 @@ def trading_bot():
     except telegram.error.InvalidToken:
         logger.warning("Invalid Telegram bot token. Telegram functionality disabled.")
         bot = None
-    except telegram.error.ChatNotFound:
-        logger.warning(f"Chat not found for chat_id: {CHAT_ID}. Telegram functionality disabled.")
+    except telegram.error.BadRequest:
+        logger.warning(f"Invalid chat ID or bot not added to chat: {CHAT_ID}. Telegram functionality disabled.")
         bot = None
     except Exception as e:
         logger.error(f"Error initializing Telegram bot: {e}")
@@ -775,8 +775,8 @@ def trading_bot():
                 except telegram.error.InvalidToken:
                     logger.warning("Invalid Telegram bot token. Skipping Telegram updates.")
                     bot = None
-                except telegram.error.ChatNotFound:
-                    logger.warning(f"Chat not found for chat_id: {CHAT_ID}. Skipping Telegram updates.")
+                except telegram.error.BadRequest:
+                    logger.warning(f"Invalid chat ID or bot not added to chat: {CHAT_ID}. Skipping Telegram updates.")
                     bot = None
                 except Exception as e:
                     logger.error(f"Error processing Telegram updates: {e}")
@@ -1095,3 +1095,4 @@ if __name__ == "__main__":
     logger.info(f"Starting Flask server on port {port}")
     asyncio.run(main())
     app.run(host='0.0.0.0', port=port, debug=False)
+
