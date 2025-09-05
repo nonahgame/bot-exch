@@ -17,6 +17,18 @@ import base64
 from flask import Flask, render_template, jsonify
 import atexit
 import asyncio
+#from telegram import Bot
+from telegram.error import BadRequest
+
+async def test_bot():
+    bot = Bot(token="YOUR_BOT_TOKEN")
+    try:
+        await bot.send_message(chat_id="YOUR_CHAT_ID", text="Test")
+    except BadRequest as e:
+        print(f"Error: {e}")
+
+#import asyncio
+asyncio.run(test_bot())
 
 pd.set_option('future.no_silent_downcasting', True)
 
