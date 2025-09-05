@@ -1,4 +1,3 @@
-# app.py sym pt 4080 & fd 2nd
 import os
 import pandas as pd
 import numpy as np
@@ -65,16 +64,16 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID", "CHAT_ID")
 SYMBOL = os.getenv("SYMBOL", "SYMBOL")
 TIMEFRAME = os.getenv("TIMEFRAME", "TIMEFRAME")
-TIMEFRAMES = int(os.getenv("INTER_SECONDS", "INTER_SECONDS"))
-STOP_LOSS_PERCENT = float(os.getenv("STOP_LOSS_PERCENT", "STOP_LOSS_PERCENT"))
-TAKE_PROFIT_PERCENT = float(os.getenv("TAKE_PROFIT_PERCENT", "TAKE_PROFIT_PERCENT"))
+TIMEFRAMES = int(os.getenv("INTER_SECONDS", "60"))
+STOP_LOSS_PERCENT = float(os.getenv("STOP_LOSS_PERCENT", "2.0"))
+TAKE_PROFIT_PERCENT = float(os.getenv("TAKE_PROFIT_PERCENT", "5.0"))
 STOP_AFTER_SECONDS = float(os.getenv("STOP_AFTER_SECONDS", 0))  # Set to 0 to disable auto-stop
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "GITHUB_REPO")
 GITHUB_PATH = os.getenv("GITHUB_PATH", "GITHUB_PATH")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "BINANCE_API_KEY")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "BINANCE_API_SECRET")
-AMOUNTS = float(os.getenv("AMOUNTS", "AMOUNTS"))
+AMOUNTS = float(os.getenv("AMOUNTS", "100.0"))
 
 # GitHub API setup
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
@@ -129,12 +128,15 @@ def upload_to_github(file_path, file_name):
         logger.debug(f"Uploading {file_name} to GitHub: {GITHUB_REPO}/{GITHUB_PATH}")
         with open(file_path, "rb") as f:
             content = base64.b64encode(f.read()).decode("utf-8")
+        # Modified: Fetch the latest SHA to handle conflicts
         response = requests.get(GITHUB_API_URL, headers=HEADERS)
         sha = None
         if response.status_code == 200:
             sha = response.json().get("sha")
             logger.debug(f"Existing file SHA: {sha}")
-        elif response.status_code != 404:
+        elif response.status_code == 404:
+            logger.info(f"No existing {file_name} found in GitHub repository.")
+        else:
             logger.error(f"Failed to check existing file on GitHub: {response.status_code} - {response.text}")
             return
         payload = {
@@ -148,6 +150,18 @@ def upload_to_github(file_path, file_name):
             logger.info(f"Successfully uploaded {file_name} to GitHub")
         else:
             logger.error(f"Failed to upload {file_name} to GitHub: {response.status_code} - {response.text}")
+            # Added: Retry with updated SHA on conflict
+            if response.status_code == 409:
+                logger.info("GitHub conflict detected. Fetching latest SHA and retrying.")
+                response = requests.get(GITHUB_API_URL, headers=HEADERS)
+                if response.status_code == 200:
+                    sha = response.json().get("sha")
+                    payload["sha"] = sha
+                    response = requests.put(GITHUB_API_URL, headers=HEADERS, json=payload)
+                    if response.status_code in [200, 201]:
+                        logger.info(f"Successfully uploaded {file_name} to GitHub after conflict resolution")
+                    else:
+                        logger.error(f"Failed to upload {file_name} after conflict resolution: {response.status_code} - {response.text}")
     except Exception as e:
         logger.error(f"Error uploading {file_name} to GitHub: {e}", exc_info=True)
 
@@ -582,7 +596,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         return "hold", None, None, None
 
     if position == "long" and buy_price is not None:
-        stop_loss = buy_price * (1 + stop_loss_percent / 100)
+        stop_loss = buy_price * (1 - stop_loss_percent / 100)  # Modified: Fixed stop-loss calculation (was adding instead of subtracting)
         take_profit = buy_price * (1 + take_profit_percent / 100)
 
         if close_price <= stop_loss:
@@ -714,8 +728,8 @@ OBV: {signal['obv']:.2f}
         except telegram.error.InvalidToken:
             logger.error(f"Invalid Telegram bot token: {bot_token}")
             return
-        except telegram.error.ChatNotFound:
-            logger.error(f"Chat not found for chat_id: {chat_id}")
+        except (telegram.error.BadRequest, telegram.error.Forbidden) as e:  # Modified: Replaced ChatNotFound with BadRequest and Forbidden
+            logger.error(f"Telegram error (chat_id: {chat_id}): {e}")
             return
         except Exception as e:
             logger.error(f"Error sending Telegram message (attempt {attempt + 1}/{retries}): {e}")
@@ -780,8 +794,8 @@ def trading_bot():
     except telegram.error.InvalidToken:
         logger.warning("Invalid Telegram bot token. Telegram functionality disabled.")
         bot = None
-    except telegram.error.ChatNotFound:
-        logger.warning(f"Chat not found for chat_id: {CHAT_ID}. Telegram functionality disabled.")
+    except (telegram.error.BadRequest, telegram.error.Forbidden) as e:  # Modified: Replaced ChatNotFound with BadRequest and Forbidden
+        logger.warning(f"Telegram error (chat_id: {CHAT_ID}): {e}. Telegram functionality disabled.")
         bot = None
     except Exception as e:
         logger.error(f"Error initializing Telegram bot: {e}")
@@ -1006,8 +1020,8 @@ def trading_bot():
                 except telegram.error.InvalidToken:
                     logger.warning("Invalid Telegram bot token. Skipping Telegram updates.")
                     bot = None
-                except telegram.error.ChatNotFound:
-                    logger.warning(f"Chat not found for chat_id: {CHAT_ID}. Skipping Telegram updates.")
+                except (telegram.error.BadRequest, telegram.error.Forbidden) as e:  # Modified: Replaced ChatNotFound with BadRequest and Forbidden
+                    logger.warning(f"Telegram error (chat_id: {CHAT_ID}): {e}. Skipping Telegram updates.")
                     bot = None
                 except Exception as e:
                     logger.error(f"Error processing Telegram updates: {e}")
@@ -1049,7 +1063,7 @@ def trading_bot():
 
                 signal = create_signal(action, current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, msg, order_id, "primary")
                 store_signal(signal)
-                logger.debug(f"Generated signal: action={signal['action']}, time={signal['time']}, price={signal['price']:.2f}, order_id={signal['order_id']}")
+                logger.debug(f"Generated signal: action={signal['action']}, time={signal['time']}, price={signal['price']:.2f}, order_id={signal['order_id']}")  # Added: Debug signal generation
 
                 if bot_active and action != "hold" and bot:
                     threading.Thread(target=send_telegram_message, args=(signal, BOT_TOKEN, CHAT_ID), daemon=True).start()
@@ -1362,15 +1376,20 @@ def index():
                 f"query_time={elapsed:.3f}s"
             )
 
-            return render_template(
-                'index.html',
-                signal=signal,
-                status=status,
-                timeframe=TIMEFRAME,
-                trades=trades,
-                stop_time=stop_time_str,
-                current_time=current_time
+            # Added: Prevent browser caching
+            response = app.make_response(
+                render_template(
+                    'index.html',
+                    signal=signal,
+                    status=status,
+                    timeframe=TIMEFRAME,
+                    trades=trades,
+                    stop_time=stop_time_str,
+                    current_time=current_time
+                )
             )
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            return response
 
         except Exception as e:
             elapsed = time.time() - start_time
@@ -1382,11 +1401,15 @@ def index():
 def status():
     status = "active" if bot_active else "stopped"
     stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
-    return jsonify({"status": status, "timeframe": TIMEFRAME, "stop_time": stop_time_str})
+    response = jsonify({"status": status, "timeframe": TIMEFRAME, "stop_time": stop_time_str})
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'  # Added: Prevent caching
+    return response
 
 @app.route('/performance')
 def performance():
-    return jsonify({"performance": get_performance()})
+    response = jsonify({"performance": get_performance()})
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'  # Added: Prevent caching
+    return response
 
 @app.route('/trades')
 def trades():
@@ -1404,7 +1427,9 @@ def trades():
             trades = [dict(zip([col[0] for col in c.description], row)) for row in c.fetchall()]
             elapsed = time.time() - start_time
             logger.debug(f"Fetched {len(trades)} trades for /trades endpoint in {elapsed:.3f}s")
-            return jsonify(trades)
+            response = jsonify(trades)
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'  # Added: Prevent caching
+            return response
         except Exception as e:
             elapsed = time.time() - start_time
             logger.error(f"Error fetching trades after {elapsed:.3f}s: {e}")
