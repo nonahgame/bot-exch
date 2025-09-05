@@ -21,9 +21,9 @@ import asyncio
 from telegram.error import BadRequest
 
 async def test_bot():
-    bot = Bot(token="YOUR_BOT_TOKEN")
+    bot = Bot(token=os.getenv("BOT_TOKEN", "BOT_TOKEN"))
     try:
-        await bot.send_message(chat_id="YOUR_CHAT_ID", text="Test")
+        await bot.send_message(chat_id=os.getenv("CHAT_ID", "CHAT_ID"), text="Test")
     except BadRequest as e:
         print(f"Error: {e}")
 
