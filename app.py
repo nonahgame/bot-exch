@@ -128,7 +128,6 @@ def upload_to_github(file_path, file_name):
         logger.debug(f"Uploading {file_name} to GitHub: {GITHUB_REPO}/{GITHUB_PATH}")
         with open(file_path, "rb") as f:
             content = base64.b64encode(f.read()).decode("utf-8")
-        # Modified: Fetch the latest SHA to handle conflicts
         response = requests.get(GITHUB_API_URL, headers=HEADERS)
         sha = None
         if response.status_code == 200:
@@ -150,7 +149,6 @@ def upload_to_github(file_path, file_name):
             logger.info(f"Successfully uploaded {file_name} to GitHub")
         else:
             logger.error(f"Failed to upload {file_name} to GitHub: {response.status_code} - {response.text}")
-            # Added: Retry with updated SHA on conflict
             if response.status_code == 409:
                 logger.info("GitHub conflict detected. Fetching latest SHA and retrying.")
                 response = requests.get(GITHUB_API_URL, headers=HEADERS)
@@ -367,7 +365,10 @@ def setup_database(first_attempt=False):
                         conn.commit()
                         logger.info(f"Added column {col} to trades table")
 
-                logger.info(f"Database initialized successfully at {db_path}, size: {os.path.getsize(db_path)} bytes")
+                # Added: Log number of trades in database
+                c.execute("SELECT COUNT(*) FROM trades")
+                trade_count = c.fetchone()[0]
+                logger.info(f"Database initialized successfully at {db_path}, size: {os.path.getsize(db_path)} bytes, trade_count: {trade_count}")
                 upload_to_github(db_path, 'rnn_bot.db')
                 return True
 
@@ -596,7 +597,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         return "hold", None, None, None
 
     if position == "long" and buy_price is not None:
-        stop_loss = buy_price * (1 - stop_loss_percent / 100)  # Modified: Fixed stop-loss calculation (was adding instead of subtracting)
+        stop_loss = buy_price * (1 - stop_loss_percent / 100)
         take_profit = buy_price * (1 + take_profit_percent / 100)
 
         if close_price <= stop_loss:
@@ -728,8 +729,11 @@ OBV: {signal['obv']:.2f}
         except telegram.error.InvalidToken:
             logger.error(f"Invalid Telegram bot token: {bot_token}")
             return
-        except (telegram.error.BadRequest, telegram.error.Forbidden) as e:  # Modified: Replaced ChatNotFound with BadRequest and Forbidden
+        except (telegram.error.BadRequest, telegram.error.Unauthorized) as e:  # Modified: Replaced Forbidden with Unauthorized
             logger.error(f"Telegram error (chat_id: {chat_id}): {e}")
+            return
+        except telegram.error.TelegramError as e:  # Added: Catch all Telegram errors
+            logger.error(f"General Telegram error (attempt {attempt + 1}/{retries}): {e}")
             return
         except Exception as e:
             logger.error(f"Error sending Telegram message (attempt {attempt + 1}/{retries}): {e}")
@@ -794,8 +798,11 @@ def trading_bot():
     except telegram.error.InvalidToken:
         logger.warning("Invalid Telegram bot token. Telegram functionality disabled.")
         bot = None
-    except (telegram.error.BadRequest, telegram.error.Forbidden) as e:  # Modified: Replaced ChatNotFound with BadRequest and Forbidden
+    except (telegram.error.BadRequest, telegram.error.Unauthorized) as e:  # Modified: Replaced Forbidden with Unauthorized
         logger.warning(f"Telegram error (chat_id: {CHAT_ID}): {e}. Telegram functionality disabled.")
+        bot = None
+    except telegram.error.TelegramError as e:  # Added: Catch all Telegram errors
+        logger.warning(f"General Telegram error: {e}. Telegram functionality disabled.")
         bot = None
     except Exception as e:
         logger.error(f"Error initializing Telegram bot: {e}")
@@ -913,7 +920,10 @@ def trading_bot():
                 if STOP_AFTER_SECONDS > 0:
                     stop_time = datetime.now(EU_TZ) + timedelta(seconds=STOP_AFTER_SECONDS)
                 if bot:
-                    bot.send_message(chat_id=CHAT_ID, text="Bot restarted automatically.")
+                    try:
+                        bot.send_message(chat_id=CHAT_ID, text="Bot restarted automatically.")
+                    except telegram.error.TelegramError as e:
+                        logger.error(f"Error sending restart message: {e}")
                 continue
 
         try:
@@ -929,7 +939,10 @@ def trading_bot():
                     position = None
                     logger.info("Bot resumed after pause")
                     if bot:
-                        bot.send_message(chat_id=CHAT_ID, text="Bot resumed after pause.")
+                        try:
+                            bot.send_message(chat_id=CHAT_ID, text="Bot resumed after pause.")
+                        except telegram.error.TelegramError as e:
+                            logger.error(f"Error sending resume message: {e}")
 
             latest_data = get_simulated_price()
             if pd.isna(latest_data['Close']):
@@ -1020,8 +1033,11 @@ def trading_bot():
                 except telegram.error.InvalidToken:
                     logger.warning("Invalid Telegram bot token. Skipping Telegram updates.")
                     bot = None
-                except (telegram.error.BadRequest, telegram.error.Forbidden) as e:  # Modified: Replaced ChatNotFound with BadRequest and Forbidden
+                except (telegram.error.BadRequest, telegram.error.Unauthorized) as e:  # Modified: Replaced Forbidden with Unauthorized
                     logger.warning(f"Telegram error (chat_id: {CHAT_ID}): {e}. Skipping Telegram updates.")
+                    bot = None
+                except telegram.error.TelegramError as e:  # Added: Catch all Telegram errors
+                    logger.warning(f"General Telegram error: {e}. Skipping Telegram updates.")
                     bot = None
                 except Exception as e:
                     logger.error(f"Error processing Telegram updates: {e}")
@@ -1081,10 +1097,11 @@ def trading_bot():
             logger.debug(f"Sleeping for {adjusted_sleep:.2f} seconds to align with next {TIMEFRAME} boundary")
             time.sleep(adjusted_sleep)
         except Exception as e:
-            logger.error(f"Error in trading loop: {e}")
+            logger.error(f"Error in trading loop: {e}", exc_info=True)  # Modified: Added exc_info for stack trace
             current_time = datetime.now(EU_TZ)
             seconds_to_wait = get_next_timeframe_boundary(current_time, timeframe_seconds)
             time.sleep(seconds_to_wait)
+            continue  # Modified: Ensure loop continues after error
 
 # Helper functions
 def create_signal(action, current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, msg, order_id, strategy):
@@ -1170,7 +1187,14 @@ def store_signal(signal):
                 ))
                 conn.commit()
                 elapsed = time.time() - start_time
-                logger.debug(f"Signal stored successfully: action={signal['action']}, strategy={signal['strategy']}, time={signal['time']}, order_id={signal['order_id']}, db_write_time={elapsed:.3f}s")
+                logger.debug(f"Signal stored successfully: action={signal['action']}, strategy={signal['strategy']}, time={signal['time']}, order_id={signal['order_id']}, db_write_time={elapsed:.3f}s")  # Modified: Enhanced logging
+                # Added: Verify the signal was stored
+                c.execute("SELECT time, action FROM trades WHERE time = ? AND action = ?", (signal['time'], signal['action']))
+                stored_signal = c.fetchone()
+                if stored_signal:
+                    logger.info(f"Verified signal stored in database: time={stored_signal[0]}, action={stored_signal[1]}")
+                else:
+                    logger.error("Signal was not found in database after insert")
                 return
             except sqlite3.Error as e:
                 elapsed = time.time() - start_time
@@ -1222,6 +1246,13 @@ def store_signal(signal):
                 conn.commit()
                 elapsed = time.time() - start_time
                 logger.info(f"Signal stored successfully in new database: action={signal['action']}, time={signal['time']}, db_write_time={elapsed:.3f}s")
+                # Added: Verify the signal was stored in new database
+                c.execute("SELECT time, action FROM trades WHERE time = ? AND action = ?", (signal['time'], signal['action']))
+                stored_signal = c.fetchone()
+                if stored_signal:
+                    logger.info(f"Verified signal stored in new database: time={stored_signal[0]}, action={stored_signal[1]}")
+                else:
+                    logger.error("Signal was not found in new database after insert")
             except Exception as e:
                 elapsed = time.time() - start_time
                 logger.error(f"Failed to store signal in forced new database after {elapsed:.3f}s: {e}")
@@ -1349,7 +1380,7 @@ def index():
                     )
 
             c = conn.cursor()
-            c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 16")
+            c.execute("SELECT * FROM trades WHERE time >= ? ORDER BY time DESC LIMIT 16", ('2025-09-05 09:36:23',))  # Modified: Filter trades after last known signal
             rows = c.fetchall()
             columns = [col[0] for col in c.description]
             trades = [dict(zip(columns, row)) for row in rows]
@@ -1374,9 +1405,8 @@ def index():
                 f"Rendering index.html: status={status}, timeframe={TIMEFRAME}, trades={len(trades)}, "
                 f"signal_exists={signal is not None}, signal_time={signal['time'] if signal else 'None'}, "
                 f"query_time={elapsed:.3f}s"
-            )
+            )  # Modified: Enhanced logging
 
-            # Added: Prevent browser caching
             response = app.make_response(
                 render_template(
                     'index.html',
