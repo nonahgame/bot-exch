@@ -1,3 +1,4 @@
+# app.py 4080
 import os
 import pandas as pd
 import numpy as np
@@ -597,7 +598,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         logger.error(f"Error calculating quantity: {e}")
         return "hold", None, None, None
 
-   if position == "long" and buy_price is not None:
+    if position == "long" and buy_price is not None:
         stop_loss = buy_price * (1 - stop_loss_percent / 100)
         take_profit = buy_price * (1 + take_profit_percent / 100)
 
