@@ -608,10 +608,10 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif close_price >= take_profit:
             logger.info("Take-profit triggered.")
             action = "sell"
-        elif (supertrend_trend == 1 and kdj_j > 105.00):  # Modified: Sell on Supertrend Uptrend
+        elif (supertrend_trend == 1 and kdj_j > kdj_d and kdj_j > 112.00):  # Modified: Sell on Supertrend Uptrend
             logger.info(f"Sell triggered by Supertrend: supertrend_trend=Up, close={close_price:.2f}")
             action = "sell"
-        elif (kdj_j > kdj_d and kdj_j > 70.00 and macd_hist > 1.00 and ema1 > ema2 and rsi > 60.00):  # Existing KDJ/MACD sell condition
+        elif (kdj_j > kdj_d and kdj_j > 90.00 and macd_hist > 1.00 and ema1 > ema2 and rsi > 60.00):  # Existing KDJ/MACD sell condition
             logger.info(
                 f"Sell triggered by KDJ/MACD: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
                 f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
@@ -619,7 +619,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
             action = "sell"
 
     if action == "hold" and position is None:
-        if (supertrend_trend == 0 and kdj_j < - 10.00):  # Modified: Buy on Supertrend Downtrend
+        if (supertrend_trend == 0 and kdj_j < kdj_d and kdj_j < - 10.00):  # Modified: Buy on Supertrend Downtrend
             logger.info(
                 f"Buy triggered by Supertrend: supertrend_trend=Down, close={close_price:.2f}"
             )
