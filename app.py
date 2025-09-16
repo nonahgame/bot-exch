@@ -617,7 +617,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif (kdj_j > kdj_d and kdj_j > 115.00 and macd < macd_signal and ema1 > ema2 and rsi < 65.00):
             logger.info(f"Sell triggered by Supertrend: supertrend_trend=Up, close={close_price:.2f}")
             action = "sell"
-        elif (supertrend_trend >= 1.00 and stoch_rsi >= 1.00 and stoch_k >= 100.00 and stoch_d > 70.00 and diff1e > 0.00 and diff2m > 0.00 and diff3k > 0.00):
+        elif (supertrend_trend == 'up' and stoch_rsi >= 1.00 and stoch_k >= 100.00 and stoch_d > 70.00 and diff1e > 0.00 and diff2m > 0.00 and diff3k > 0.00):
             logger.info(
                 f"Sell triggered by KDJ/MACD: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
                 f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
@@ -636,7 +636,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
                 f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
             )
             action = "buy"
-        elif (supertrend_trend <= 0.00 and stoch_rsi <= 0.00 and stoch_k <= 0.00 and stoch_d <= 0.00 and diff1e < - 0.00 and diff2m < - 0.00 and diff3k < - 0.00):
+        elif (supertrend_trend == 'down' and stoch_rsi <= 0.00 and stoch_k <= 0.00 and stoch_d <= 0.00 and diff1e < - 0.00 and diff2m < - 0.00 and diff3k < - 0.00):
             logger.info(
                 f"Buy triggered by Supertrend: supertrend_trend=Down, close={close_price:.2f}"
             )
