@@ -754,8 +754,11 @@ OBV: {signal['obv']:.2f}
         except telegram.error.InvalidToken:
             logger.error(f"Invalid Telegram bot token: {bot_token}")
             return
-        except telegram.error.ChatNotFound:
-            logger.error(f"Chat not found for chat_id: {chat_id}")
+        except (telegram.error.BadRequest, telegram.error.Unauthorized) as e:  # Modified: Replaced Forbidden with Unauthorized
+            logger.error(f"Telegram error (chat_id: {chat_id}): {e}")
+            return
+        except telegram.error.TelegramError as e:  # Added: Catch all Telegram errors
+            logger.error(f"General Telegram error (attempt {attempt + 1}/{retries}): {e}")
             return
         except Exception as e:
             logger.error(f"Error sending Telegram message (attempt {attempt + 1}/{retries}): {e}")
@@ -824,8 +827,11 @@ def trading_bot():
     except telegram.error.InvalidToken:
         logger.warning("Invalid Telegram bot token. Telegram functionality disabled.")
         bot = None
-    except telegram.error.ChatNotFound:
-        logger.warning(f"Chat not found for chat_id: {CHAT_ID}. Telegram functionality disabled.")
+    except (telegram.error.BadRequest, telegram.error.Unauthorized) as e:  # Modified: Replaced Forbidden with Unauthorized
+        logger.warning(f"Telegram error (chat_id: {CHAT_ID}): {e}. Telegram functionality disabled.")
+        bot = None
+    except telegram.error.TelegramError as e:  # Added: Catch all Telegram errors
+        logger.warning(f"General Telegram error: {e}. Telegram functionality disabled.")
         bot = None
     except Exception as e:
         logger.error(f"Error initializing Telegram bot: {e}")
@@ -1054,8 +1060,11 @@ def trading_bot():
                 except telegram.error.InvalidToken:
                     logger.warning("Invalid Telegram bot token. Skipping Telegram updates.")
                     bot = None
-                except telegram.error.ChatNotFound:
-                    logger.warning(f"Chat not found for chat_id: {CHAT_ID}. Skipping Telegram updates.")
+                except (telegram.error.BadRequest, telegram.error.Unauthorized) as e:  # Modified: Replaced Forbidden with Unauthorized
+                    logger.warning(f"Telegram error (chat_id: {CHAT_ID}): {e}. Skipping Telegram updates.")
+                    bot = None
+                except telegram.error.TelegramError as e:  # Added: Catch all Telegram errors
+                    logger.warning(f"General Telegram error: {e}. Skipping Telegram updates.")
                     bot = None
                 except Exception as e:
                     logger.error(f"Error processing Telegram updates: {e}")
