@@ -611,7 +611,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif close_price >= take_profit:
             logger.info("Take-profit triggered.")
             action = "sell"
-        elif (lst_diff < - 0.00 and macd_hollow >= 0.00 and stoch_rsi == 1.00 and stoch_k == 100.00):
+        elif (lst_diff < 0.00 and macd_hollow >= 0.00 and stoch_rsi >= 0.99 and stoch_k >= 99.98):
             logger.info(f"Sell triggered by macd_hollow: macd_hollow=Up, close={close_price:.2f}")
             action = "sell"
         elif (kdj_j > kdj_d and kdj_j > 115.00 and macd < macd_signal and ema1 > ema2 and rsi < 65.00):
