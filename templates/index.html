@@ -219,17 +219,18 @@
                         return;
                     }
                     let html = '<table class="trade-table"><thead><tr>';
-                    const columns = ['time', 'rsi' | round(2), 'j' | round(2), 'macd_hollow' | round(2), 'obv' | round(2), 'total_profit' | round(2), 'message', 'timeframe', 'diff1e' | round(2)];
+                    const columns = ['time', 'rsi', 'j', 'macd_hollow', 'obv', 'total_profit', 'message', 'timeframe', 'diff1e'];
                     columns.forEach(col => {
                         html += '<th>' + (col.replace('_', ' ') + ' ').toUpperCase() + '</th>';
                     });
                     html += '</tr></thead><tbody>';
-                    data.slice(0, 10).forEach(trade => {  // Limit to 10 rows
+                    data.slice(0, 10).forEach(trade => { // Limit to 10 rows
                         html += '<tr>';
                         columns.forEach(col => {
                             let value = trade[col] || '';
                             let className = 'number-neutral';
-                            if (['price', 'profit', 'total_profit'].includes(col) && value !== '' && value != null) {
+                            // Apply 2 decimal places for numeric columns
+                            if (['rsi', 'j', 'macd_hollow', 'obv', 'total_profit', 'diff1e', 'price', 'profit'].includes(col) && value !== '' && value != null) {
                                 value = Number(value).toFixed(2);
                                 if (Number(value) > 0) className = 'number-positive';
                                 else if (Number(value) < 0) className = 'number-negative';
