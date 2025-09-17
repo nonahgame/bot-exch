@@ -219,7 +219,7 @@
                         return;
                     }
                     let html = '<table class="trade-table"><thead><tr>';
-                    const columns = ['time', 'rsi', 'j', 'macd_hollow', 'obv', 'total_profit', 'message', 'timeframe', 'diff1e'];
+                    const columns = ['time', 'rsi' | round(2), 'j' | round(2), 'macd_hollow' | round(2), 'obv' | round(2), 'total_profit' | round(2), 'message', 'timeframe', 'diff1e' | round(2)];
                     columns.forEach(col => {
                         html += '<th>' + (col.replace('_', ' ') + ' ').toUpperCase() + '</th>';
                     });
@@ -302,15 +302,15 @@
                     <tr><th>Diff2M</th><td class="number-neutral">{{ signal.diff2m | round(2) if signal.diff2m is not none else '' }}</td></tr>
                     <tr><th>Diff3K</th><td class="number-neutral">{{ signal.diff3k | round(2) if signal.diff3k is not none else '' }}</td></tr>
                     <tr><th>Volume</th><td class="number-neutral">{{ signal.volume | round(2) if signal.volume is not none else '' }}</td></tr>
-                    <tr><th>DIFF</th><td class="{% if signal.diff is not none %}{% if signal.diff > 0 %}number-positive{% elif signal.diff < 0 %}number-negative{% else %}number-neutral{% endif %}{% endif %}">{{ signal.diff | round(2) if signal.diff is not none else '' }}%</td></tr>
+                    <tr><th>DIFF</th><td class="number-neutral">{{ signal.diff | round(2) if signal.diff is not none else '' }}</td></tr>
                     <tr><th>Profit</th><td class="{% if signal.profit is not none %}{% if signal.profit > 0 %}number-positive{% elif signal.profit < 0 %}number-negative{% else %}number-neutral{% endif %}{% endif %}">{{ signal.profit | round(2) if signal.profit is not none else '' }}</td></tr>
                     <tr><th>Total Profit</th><td class="{% if signal.total_profit is not none %}{% if signal.total_profit > 0 %}number-positive{% elif signal.total_profit < 0 %}number-negative{% else %}number-neutral{% endif %}{% endif %}">{{ signal.total_profit | round(2) if signal.total_profit is not none else '' }}</td></tr>
                     <tr><th>Return Profit</th><td class="{% if signal.return_profit is not none %}{% if signal.return_profit > 0 %}number-positive{% elif signal.return_profit < 0 %}number-negative{% else %}number-neutral{% endif %}{% endif %}">{{ signal.return_profit | round(2) if signal.return_profit is not none else '' }}</td></tr>
                     <tr><th>Total Return Profit</th><td class="{% if signal.total_return_profit is not none %}{% if signal.total_return_profit > 0 %}number-positive{% elif signal.total_return_profit < 0 %}number-negative{% else %}number-neutral{% endif %}{% endif %}">{{ signal.total_return_profit | round(2) if signal.total_return_profit is not none else '' }}</td></tr>
                     <tr><th>Message</th><td class="number-neutral">{{ signal.message if signal.message is not none else '' }}</td></tr>
                     <tr><th>Timeframe</th><td class="number-neutral">{{ signal.timeframe if signal.timeframe is not none and signal.timeframe != '' else 'N/A' }}</td></tr>
-                    <tr><th>Stoch_RSI</th><td class="number-neutral">{{ signal.stoch_rsi if signal.stoch_rsi is not none and signal.stoch_rsi != '' else 'None' }}</td></tr>
-                    <tr><th>Stoch_K</th><td class="number-neutral">{{ signal.stoch_k if signal.stoch_k is not none else '' }}</td></tr>
+                    <tr><th>Stoch_RSI</th><td class="number-neutral">{{ signal.stoch_rsi | round(2) if signal.stoch_rsi is not none and signal.stoch_rsi != '' else 'None' }}</td></tr>
+                    <tr><th>Stoch_K</th><td class="number-neutral">{{ signal.stoch_k | round(2) if signal.stoch_k is not none else '' }}</td></tr>
                 </table>
             {% else %}
                 <p class="error">No signals available.</p>
