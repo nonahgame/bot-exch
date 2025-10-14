@@ -648,8 +648,8 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         #    action = "sell"
 
     if action == "hold" and position is None:
-        if (diff >  0.00 and diff2m > 0.00 and diff3k > 0.00):
-            logger.info(f"Buy triggered by macd_hollow: macd_hollow=Down, close={close_price:.2f}")
+        if (diff >  0.00 and diff2m > 0.00):
+            logger.info(f"Buy triggered by diff: macd_hollow=Down, close={close_price:.2f}")
             action = "buy"
         #elif (kdj_j < kdj_d and kdj_j < -15.00 and macd < macd_signal and ema1 < ema2 and rsi < 17.00 and stoch_k <= 0.01):
         #    logger.info(f"Buy triggered by KDJ/MACD: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}")
